@@ -1,68 +1,69 @@
-export type UserProps = {
-    user_id: string,
-    username: string,
-    password_hash: string,
-    created_at: string,
-    updated_at: string,
-    role: string
+export enum UserRole {
+    GESTOR = "GESTOR",
+    CAIXA = "CAIXA",
+    VENDEDOR = "VENDEDOR"
 }
 
-export class User{
+export type UserProps = {
+    readonly user_id: string;
+    readonly username: string;
+    readonly password_hash: string;
+    readonly created_at: string;
+    readonly updated_at: string;
+    readonly role: UserRole;
+}
 
-    private constructor (readonly props: UserProps){} 
+export class User {
+    //construtor privado para garantir o uso do builder/fábrica
+    private constructor(private readonly props: UserProps) {}
 
-    public static build(username: string, password_hash: string, role: string){
-        
-        const now: string = new Date().toISOString();
-        
+    //validacoes
+    private static validateUsername(username: string): void {
+        if (username.length < 3) throw new Error("Nome de usuário deve ter pelo menos 3 caracteres");
+        if (username.length > 50) throw new Error("Nome de usuário não pode ultrapassar 50 caracteres");
+    }
+
+    //fabric apara criação de novos usuários (cadastrar novo usuario)
+    public static buildUser(username: string, password_hash: string, role: UserRole): User {
+        User.validateUsername(username);
+
+        const now = new Date().toISOString();
+
         return new User({
-            user_id: crypto.randomUUID().toString(),
+            user_id: crypto.randomUUID(),
             username,
             password_hash,
             created_at: now,
             updated_at: now,
             role
-        })
+        });
     }
 
-    
     //getters
-    public getUserId(){
-        return this.props.user_id
+    get id() { return this.props.user_id; }
+    get username() { return this.props.username; }
+    get passwordHash() { return this.props.password_hash; }
+    get role() { return this.props.role; }
+    get createdAt() { return this.props.created_at; }
+    get updatedAt() { return this.props.updated_at; }
+
+    //setters que retornam novos objetos, mantendo a imutabilidade de um objeto criado
+    public withUsername(newName: string): User {
+        User.validateUsername(newName);
+
+        return new User({
+            ...this.props,
+            username: newName,
+            updated_at: new Date().toISOString()
+        });
     }
 
-    public getUsername(){
-        return this.props.username;
-    }
-
-    public getPasswordHash(){
-        return this.props.password_hash;
-    }
-
-    public getCreatedAt(){
-        return this.props.created_at;
-    }
-
-    public getUpdatedAt(){
-        return this.props.updated_at;
-    }
-
-    public getRole(){
-        return this.props.role;
-    }
-
-    //setters
-    public setUpdatedNow(){
-        this.props.updated_at = new Date().toISOString();
-    }
-
-    public setUsername(name: string){
-
-        if (name.length > 50){
-            throw new Error("Nome não pode ultrapassar 50 caracteres")
-        }
-        this.props.username = name;
-        this.setUpdatedNow();
+    public withPassword(newHashedPassord: string): User{
+        return new User({
+            ...this.props,
+            password_hash: newHashedPassord,
+            updated_at: new Date().toISOString()
+        })
     }
 
 }

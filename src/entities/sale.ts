@@ -1,4 +1,5 @@
 import { Decimal } from "decimal.js";
+import { Bill } from "./bill.js";
 
 enum states_sales{
     CONCLUIDA,
@@ -7,12 +8,12 @@ enum states_sales{
 }
 
 export type SaleProps = {
-    sale_id: string,
-    user_id: string,
-    created_at: string,
-    updated_at: string,
-    total_price: Decimal
-    status: states_sales
+    readonly sale_id: string,
+    readonly user_id: string,
+    readonly created_at: string,
+    readonly updated_at: string,
+    readonly total_price: Decimal
+    readonly status: states_sales
 }
 
 export class Sale{
@@ -32,31 +33,15 @@ export class Sale{
             status
         })
     }
+
     //getters
-    public getSaleId(){
-        return this.props.sale_id;
-    }
-
-    public getUserId(){
-        return this.props.user_id;
-    }
-
-    public getCreatedAt(){
-        return this.props.created_at;
-    }
-
-    public getUpdatedAt(){
-        return this.props.updated_at;
-    }
-
-    public getTotalPrice(){
-        return this.props.total_price;
-    }
-
-    public getStatus(){
-        return this.props.status;
-    }
-
+    get id(){ return this.props.sale_id; }
+    get user_id(){ return this.props.user_id; }
+    get created_at(){ return this.props.created_at; }
+    get updated_at(){ return this.props.updated_at; }
+    get total_price(){ return this.props.total_price; }
+    get status(){ return this.props.status; }
+    
     //setters
     public setUpdatedNow(){
         this.props.updated_at = new Date().toISOString();

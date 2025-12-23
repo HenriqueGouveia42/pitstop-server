@@ -1,115 +1,167 @@
 import { Decimal } from 'decimal.js';
-import crypto from 'crypto';
+import { Product } from './product.js';
 
-// Tipagem para os itens da comanda (conforme DBML)
+//tipo de um item na comanda
 export type BillItemProps = {
-    bill_item_id: string;
-    bill_id: string;
-    product_id: string;
-    quantity: number;
-    price_at_addition: Decimal;
+    readonly bill_item_id: string;
+    readonly bill_id: string;
+    readonly product_id: string;
+    readonly quantity: number;
+    readonly price_at_addition: Decimal;
 }
 
-// Tipagem para a Comanda (conforme DBML)
+
+enum billStates{
+    ABERTA = "ABERTA",
+    FECHADA = "FECHADA",
+    CANCELADA = "CANCELADA"
+}
+
+//tipo da comanda em si
 export type BillProps = {
-    bill_id: string;
-    bill_code: string;
-    is_active: boolean;
-    created_at: string;
-    items: BillItemProps[]; // Relacionamento com bill_items
+    readonly bill_id: string;
+    readonly bill_code: string; //comanda "1025", por exemplo, que será utilizada por diversos clientes
+    readonly status: billStates;
+    readonly created_at: string;
+    readonly items: BillItemProps[]; //relacionamento com bill_items
 }
 
 export class Bill {
-    // Construtor privado para forçar o uso do builder
-    private constructor(readonly props: BillProps) {}
+    //construtor privado para forçar o uso do builder
+    private constructor(private readonly props: BillProps) {}
 
-    /**
-     * Cria uma nova comanda (Builder)
-     * @param bill_code O código físico do papelzinho (ex: "1042")
-     */
-    public static build(bill_code: string): Bill {
-        if (!bill_code || bill_code.trim() === "") {
-            throw new Error("O código da comanda é obrigatório.");
+    private static validateGtin13Code(gtin: string){
+
+        if(gtin.length != 13){
+            throw new Error("Codigo GTIN-13 precisa 13 digitos")
         }
+
+        //verificas se a string contém APENAS dígitos de 0 a 9
+        if (!/^\d+$/.test(gtin)) {
+            throw new Error("O código GTIN deve conter apenas números");
+        }
+
+        const startsWith202 = gtin.startsWith('202');
+
+        if(!startsWith202){
+            throw new Error("O código GTIN deve comecar com o prefixo de comanda: '202' ");
+        }
+
+        const lastNumber = Number(gtin.slice(-1));
+
+        let sum: number = 0;
+        let impar: boolean = true;
+
+        for(let i = 0; i < 12; i++){
+
+            let currentNumber = Number(gtin[i]);
+
+            impar ?
+            sum += currentNumber
+            :
+            sum += (3 * currentNumber);
+
+            impar = !impar
+        }
+
+        sum = sum % 10;
+
+        const expectedCheckNumber = (10 - sum) % 10;
+
+        if(lastNumber != expectedCheckNumber){
+            throw new Error("GTIN-13 invalido. Digito Verificador incorreto")
+        }
+    }
+
+    public static buildBill(bill_code: string): Bill {
+
+        Bill.validateGtin13Code(bill_code);
 
         const now = new Date().toISOString();
 
         return new Bill({
             bill_id: crypto.randomUUID().toString(),
             bill_code: bill_code,
-            is_active: true,
+            status: billStates.ABERTA,
             created_at: now,
-            items: [] // Inicia sem itens
+            items: [] //inicia sem itens
         });
     }
+    //getters para acesso seguro aos dados -- readonly permite apenas ler
 
-    /**
-     * Regra de Negócio: Adicionar produto à comanda
-     * Aqui "congelamos" o preço do produto no momento da adição.
-     */
-    public addItem(product_id: string, quantity: number, unit_price: Decimal): void {
-        if (!this.props.is_active) {
-            throw new Error("Não é possível adicionar itens a uma comanda que já foi fechada.");
+    get bill_id() {return this.props.bill_id}
+    get bill_code() {return this.props.bill_code}
+    get status() {return this.props.status}
+    get createdAt() {return this.props.created_at}
+    get items() {return this.props.items}
+
+    public withClosedBill(): Bill{
+
+        if(this.props.status === billStates.FECHADA){
+            throw new Error("Essa comanda já está fechada");
         }
 
-        if (quantity <= 0) {
-            throw new Error("A quantidade deve ser maior que zero.");
+        if(this.props.items.length === 0){
+            throw new Error("Não pode fechar uma comanda sem itens")
         }
 
-        // Se o produto já existe na comanda, apenas somamos a quantidade
-        const existingItem = this.props.items.find(item => item.product_id === product_id);
+        return new Bill({
+            ...this.props,
+            status: billStates.FECHADA
+        })
+    }
 
-        if (existingItem) {
-            existingItem.quantity += quantity;
-        } else {
-            // Se é um item novo, criamos o objeto bill_item
-            const newItem: BillItemProps = {
-                bill_item_id: crypto.randomUUID().toString(),
-                bill_id: this.props.bill_id,
-                product_id: product_id,
-                quantity: quantity,
-                price_at_addition: unit_price
-            };
-            this.props.items.push(newItem);
+    public withOpenedBill(): Bill{
+
+        if (this.props.status == billStates.ABERTA){
+            throw new Error("Essa comanda já está aberta")
         }
-    }
 
-    /**
-     * Regra de Negócio: Fecha a comanda para pagamento
-     */
-    public close(): void {
-        if (this.props.items.length === 0) {
-            throw new Error("Não é possível fechar uma comanda sem itens.");
+            
+        if(this.props.items.length != 0){
+            throw new Error("Essa comanda já está com itens pendentes")
         }
-        this.props.is_active = false;
+
+        return new Bill({
+                ...this.props,
+                status: billStates.ABERTA
+            }
+        )
     }
 
-    // Getters conforme os nomes do banco de dados
-    public getBillId(): string {
-        return this.props.bill_id;
+    public withNewProductAddedToBill(product: Product, quantity: number): Bill{
+
+        //readonly bill_item_id: string;
+        //readonly bill_id: string;
+        //readonly product_id: string;
+        //readonly quantity: number;
+        //readonly price_at_addition: Decimal;
+
+        if (quantity <= 0) throw new Error("A quantidade deve ser maior que zero.");
+        if (this.props.status !== billStates.ABERTA) throw new Error("Não é possível adicionar itens a uma comanda que não está ABERTA.");
+        
+       const itemExists = this.props.items.some(item => item.product_id === product.id)
+
+       const newItems = itemExists
+
+       ? this.props.items.map(item => 
+            item.product_id === product.id
+            ?   {...item, quantity: item.quantity + quantity}
+            :   item
+       )
+       :
+        [...this.props.items, {
+            bill_item_id: crypto.randomUUID(),
+            bill_id: this.bill_id,
+            product_id: product.id,
+            quantity: quantity,
+            price_at_addition: product.price
+        }];
+
+        return new Bill({...this.props, items: newItems});
     }
 
-    public getBillCode(): string {
-        return this.props.bill_code;
-    }
-
-    public getIsActive(): boolean {
-        return this.props.is_active;
-    }
-
-    public getCreatedAt(): string {
-        return this.props.created_at;
-    }
-
-    public getItems(): BillItemProps[] {
-        // Retorna uma cópia para proteger a integridade da lista original
-        return [...this.props.items];
-    }
-
-    /**
-     * Calcula o valor total atual da comanda
-     */
-    public calculateTotal(): Decimal {
+    public calculateTotalBillAmount(): Decimal {
         return this.props.items.reduce((acc, item) => {
             return acc.plus(item.price_at_addition.times(item.quantity));
         }, new Decimal(0));

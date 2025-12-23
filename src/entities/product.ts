@@ -14,7 +14,7 @@ export class Product {
     //constructor e propriedade props são estritamente readonly
     private constructor(private readonly props: ProductProps) {}
 
-    private static validateGtin13CheckNumber(gtin: string){
+    private static validateGtin13Code(gtin: string, is_internal: boolean){
 
         if(gtin.length != 13){
             throw new Error("Codigo GTIN-13 precisa 13 digitos")
@@ -49,6 +49,19 @@ export class Product {
         if(lastNumber != expectedCheckNumber){
             throw new Error("GTIN-13 invalido. Digito Verificador incorreto")
         }
+
+        const startsWith200 = gtin.startsWith('200');
+
+        if( startsWith200 !== is_internal){
+            throw new Error("GTIN-13 code não corresponde ao status 'is_internal'. Produtos internos começam com '200'")
+        }
+
+        const startsWith202 = gtin.startsWith('202');
+
+        if (startsWith202){
+            throw new Error("Um produto nao pode comecar com '202', pois esse prefixo é reservado para comandas")
+        }
+
     }
 
     private static validateName(name: string) {
@@ -59,11 +72,6 @@ export class Product {
         if (price.isNegative() || price.gt(1000000)) throw new Error("Preço fora da faixa permitida");
     }
 
-    private static isGtinCodeMatchingIfIsInternalOrExternal(gtin_code: string, is_internal: boolean): boolean {
-        const startsWith200 = gtin_code.startsWith('200');
-        return startsWith200 === is_internal;
-    }
-
     public static buildProduct(
         name: string, 
         unit_price_in_reais: Decimal, 
@@ -71,18 +79,15 @@ export class Product {
         is_internal: boolean
     ): Product {
 
-        if (!Product.isGtinCodeMatchingIfIsInternalOrExternal(gtin_code, is_internal)) {
-            throw new Error("GTIN-13 code não corresponde ao status 'is_internal'. Produtos internos começam com '200'");
-        }
-
+       
+        Product.validateGtin13Code(gtin_code, is_internal);
         Product.validateName(name);
         Product.validatePrice(unit_price_in_reais);
-        Product.validateGtin13CheckNumber(gtin_code);
 
         const now = new Date().toISOString();
 
         return new Product({
-            product_id: crypto.randomUUID().toString(),
+            product_id: crypto.randomUUID(),
             name,
             created_at: now,
             updated_at: now,
