@@ -1,26 +1,26 @@
 import { Decimal } from 'decimal.js';
-import { Product } from './product.js';
+import { Product } from '../../product/entities/product.js';
 
 //tipo de um item na comanda
 export type BillItemProps = {
+    readonly bill_item_id:  string; //representa uma adição específica em uma comanda específica
     readonly user_id: string;
-    readonly bill_item_id: string;
     readonly product_id: string;
     readonly quantity: number;
     readonly price_at_addition: Decimal;
 }
 
-
+//estados possiveis de uma comanda
 export enum billStates{
     ABERTA = "ABERTA",
     FECHADA = "FECHADA",
     CANCELADA = "CANCELADA"
 }
 
-//tipo da comanda em si
+//tipo de uma comanda em uso
 export type BillProps = {
-    readonly bill_id: string;
-    readonly bill_code: string; //comanda "1025", por exemplo, que será utilizada por diversos clientes
+    readonly bill_id: string; //representa um uso específico da comanda física
+    readonly bill_code_gtin: string; //representa uma comanda física. Comanda "1025", por exemplo, que será utilizada por diversos clientes
     readonly status: billStates;
     readonly created_at: string;
     readonly updated_at: string;
@@ -28,7 +28,7 @@ export type BillProps = {
 }
 
 export class Bill {
-    //construtor privado para forçar o uso do builder
+
     private constructor(private readonly props: BillProps) {}
 
     private static validateGtin13Code(gtin: string){
@@ -74,16 +74,16 @@ export class Bill {
         }
     }
 
-    public static buildBill(bill_code: string): Bill {
+    public static buildBill(bill_code_gtin: string): Bill {
 
-        Bill.validateGtin13Code(bill_code);
+        Bill.validateGtin13Code(bill_code_gtin);
 
         const now = new Date().toISOString();
 
         return new Bill({
             bill_id: crypto.randomUUID().toString(),
-            bill_code: bill_code,
-            status: billStates.ABERTA,
+            bill_code_gtin: bill_code_gtin,
+            status: billStates.ABERTA, //ao buildar um objeto de comanda, essa comanda física passa a poder receber itens - status ABERTA
             created_at: now,
             updated_at: now,
             items: [] //inicia sem itens
@@ -92,12 +92,12 @@ export class Bill {
     //getters para acesso seguro aos dados -- readonly permite apenas ler
 
     get bill_id() {return this.props.bill_id}
-    get bill_code() {return this.props.bill_code}
+    get bill_code() {return this.props.bill_code_gtin}
     get status() {return this.props.status}
     get createdAt() {return this.props.created_at}
     get items() {return this.props.items}
 
-    public withClosedBill(): Bill{
+    public withClosedBill(): Bill{ //fechar comanda - realizar venda
 
         if(this.props.status === billStates.FECHADA){
             throw new Error("Essa comanda já está fechada");
@@ -114,39 +114,54 @@ export class Bill {
         })
     }
 
-    public withNewProductAddedToBill(product: Product, quantity: number, user_id: string): Bill{
+    public withReopenedBill(): Bill{ //reabrir comanda - venda realizada - adicionar mais itens
 
-        //readonly bill_item_id: string;
-        //readonly bill_id: string;
-        //readonly product_id: string;
-        //readonly quantity: number;
-        //readonly price_at_addition: Decimal;
+        if(this.props.status !== billStates.FECHADA){
+            throw new Error("Apenas comandas fechadas podem ser reabertas");
+        }
+        return new Bill({
+            ...this.props,
+            status: billStates.ABERTA,
+            updated_at: new Date().toISOString()
+        })
+    }
+
+    public withNewProductAddedToBill(product: Product, quantity: number, user_id: string): Bill {
 
         if (quantity <= 0) throw new Error("A quantidade deve ser maior que zero.");
+    
         if (this.props.status !== billStates.ABERTA) throw new Error("Não é possível adicionar itens a uma comanda que não está ABERTA.");
         
-       const itemExists = this.props.items.some(item => item.product_id === product.id)
+        const itemExists: boolean = this.props.items.some(item => item.product_id === product.id) //se o item ja existe na comanda
+        
+        let itemsToAdd: BillItemProps[];
+       
+        if (itemExists){ //item ja existe na comanda
+    
+            itemsToAdd = this.props.items.map(item =>
+                item.product_id === product.id
+                ? {...item, quantity: item.quantity + quantity}
+                : item
+            )
 
-       const newItems = itemExists
+        } else { //item ainda nao existe na comanda
 
-       ? this.props.items.map(item => 
-            item.product_id === product.id
-            ?   {...item, quantity: item.quantity + quantity}
-            :   item
-       )
-       :
-        [...this.props.items, {
+        const newItem: BillItemProps = {
             bill_item_id: crypto.randomUUID(),
+            user_id: user_id,
             product_id: product.id,
             quantity: quantity,
-            price_at_addition: product.price,
-            user_id: user_id
-        }];
+            price_at_addition:product.price
+        }
 
-        return new Bill({...this.props, items: newItems});
+        itemsToAdd = [...this.props.items, newItem]
+       }
+
+       return new Bill({...this.props, items: itemsToAdd, updated_at: new Date().toISOString()});
     }
 
     public withCancelledBill(): Bill {
+
         if (this.props.status !== billStates.ABERTA) {
             throw new Error("Apenas comandas abertas podem ser canceladas.");
         }
@@ -157,7 +172,7 @@ export class Bill {
         });
     }
 
-    public calculateTotalBillAmount(): Decimal {
+    public calculateTotalBillAmount(): Decimal {   
         return this.props.items.reduce((acc, item) => {
             return acc.plus(item.price_at_addition.times(item.quantity));
         }, new Decimal(0));

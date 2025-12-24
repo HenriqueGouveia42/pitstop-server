@@ -1,0 +1,163 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  GESTOR
+  CAIXA
+  VENDEDOR
+}
+
+enum BillStatus {
+  ABERTA
+  FECHADA
+  CANCELADA
+}
+
+enum SaleStatus {
+  CONCLUIDA
+  CANCELADA
+  ESTORNADA
+}
+
+enum PaymentMethod {
+  PIX
+  ESPECIE
+  CARTAO_DEBITO
+  CARTAO_CREDITO
+}
+
+//models - tables - entities
+
+model User {
+  user_id       String   @id // UUID gerado pela aplicação
+  username      String   @unique
+  password_hash String
+  role          UserRole
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relacionamentos
+  sales_closed  Sale[]        @relation("UserClosedSale")
+  items_added   BillProduct[] @relation("UserAddedItem")
+
+  @@map("users")
+}
+
+model Product {
+  product_id          String   @id
+  name                String
+  unit_price_in_reais Decimal  @db.Decimal(10, 2)
+  gtin_code           String   @unique
+  is_internal         Boolean
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  //relacionamentos
+  bill_products BillProduct[]
+  sale_products SaleProduct[]
+
+  @@map("products")
+}
+
+model Bill {
+  bill_id        String     @id
+  bill_code_gtin String     // O código físico (papel) "202..."
+  status         BillStatus
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+
+  //relacionamentos
+  items          BillProduct[]
+  
+  //uma comanda pode gerar no máximo UMA venda final.
+  //o campo fica do lado da Sale (origin_bill_id), aqui é o espelho.
+  generated_sale Sale?
+
+  @@map("bills")
+}
+
+//tabela de Junção - itens dentro da Comanda
+//representa o "BillItemProps" da comanda persistida
+model BillProduct {
+  bill_item_id      String  @id
+  quantity          Int
+  price_at_addition Decimal @db.Decimal(10, 2) // Preço congelado no momento do bipe
+
+  //chaves Estrangeiras
+  bill_id    String
+  product_id String
+  user_id    String
+
+  //relacionamentos
+  bill    Bill    @relation(fields: [bill_id], references: [bill_id])
+  product Product @relation(fields: [product_id], references: [product_id])
+  user    User    @relation("UserAddedItem", fields: [user_id], references: [user_id])
+
+  @@map("bill_products")
+}
+
+model Sale {
+  sale_id        String     @id
+  total_price    Decimal    @db.Decimal(10, 2)
+  status         SaleStatus
+  origin_bill_id String?    @unique //opc - venda direta no balcao no possui bill - Unique = 1 Bill gera 1 Sale.
+  user_id        String     //quem fechou a venda
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+
+  //relacionamentos
+  origin_bill Bill?         @relation(fields: [origin_bill_id], references: [bill_id])
+  user        User          @relation("UserClosedSale", fields: [user_id], references: [user_id])
+  items       SaleProduct[]
+  payments    SalePayment[]
+
+  @@map("sales")
+}
+
+//itens de venda fechada
+//representa o "SaleItemOutputDTO" persistido
+model SaleProduct {
+  sale_product_id String  @id
+  quantity        Int
+  unit_price_sold Decimal @db.Decimal(10, 2)
+  cameFromBill    Boolean // Booleano importante para rastreio
+
+  //chaves estrangeiras
+  sale_id    String
+  product_id String
+
+  //relacionamentos
+  sale    Sale    @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [product_id])
+
+  @@map("sale_products")
+}
+
+//pagamentos da venda
+//representa o "SalePaymentOutputDTO" persistido
+model SalePayment {
+  sale_payment_id String        @id
+  method          PaymentMethod
+  amount          Decimal       @db.Decimal(10, 2)
+
+  //chaves estrangeiras
+  sale_id String
+
+  //relacionamentos
+  sale Sale @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
+
+  @@map("sale_payments")
+}
