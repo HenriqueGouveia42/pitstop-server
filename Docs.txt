@@ -1,7 +1,7 @@
-Produtos externos (Comprados de comercios profissionais, etc) são identificados com o GTIN-13, um codigo de 12 digitos + 1 digito verificador
-que identifica um produto especifico
+A entidade "user" representa um usuário no sistema, que
 
-Produtos internos (Produzidos internamente pela empresa) também são iedntificados com o GTIN-13, com a mesma regra de validação de digito
+A entidade "product" representa um produto no sistema. Produtos externos (Comprados de comercios profissionais, etc) são identificados com o GTIN-13, um codigo de 12 digitos + 1 digito verificador
+que identifica um produto especifico. Produtos internos (Produzidos internamente pela empresa) também são iedntificados com o GTIN-13, com a mesma regra de validação de digito
 verificador. A organização GS1 (que regula os códigos de barras) reserva os prefixos que começam com 2 (de 20 a 29) para uso interno. 
 Isso garante que seu código interno nunca coincida com um produto de mercado. Produto internos sempre começarão com o prefixo 200. Exemplo de GTIN-13
 de produto interno: "200..." Estrutura de GTIN-13 de produto interno: 200 + 000000000 (9 dígitos de ID) + D (Dígito verificador).
@@ -11,4 +11,10 @@ pagos posteriormente no caixa. Assim que o cliente terminar de consumir, passar�
 os produtos do objeto "bill" serão tranformados em registros da tabela "sales_products" e um registro na tabela "sales". Assim, o modelo de
 persistencia vinculado a um id de uma entidade "bill" será esvaziado, liberado a comanda para ser usada por outro usuário. "bill_code" é um numero
 tambem no padrao GTIN-13, associado a uma COMANDA FÍSICA IMPRESSA. "bill_code" está associada a uma comanda física que não muda, e "bill_id"
-representa um uso especifico daquela comanda, que será convertido em "sale" quando a comanda for paga. "bill_code" sempre comeca com "202"
+representa um uso especifico daquela comanda, que será convertido em "sale" quando a comanda for paga. "bill_code" sempre comeca com "202".
+
+A entidade "sale" representa uma conta fechada, cristalizada e que foi para o histórico. Uma "sale" está associada a um "user_id" para rastrear qual
+usuario criou essa venda. A entidade "sale" também está relacionada com um registro na tabela "sale_payments" em uma relação 1:N, pois uma venda possuir
+"N" formas de pagamaento (Digamos que uma "sale" tenha custado R$100,00, e o cliente queira pagar R$50,00 no PIX e R$50,00 em espécie, por exemplo).
+
+A enti

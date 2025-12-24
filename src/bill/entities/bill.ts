@@ -3,15 +3,15 @@ import { Product } from './product.js';
 
 //tipo de um item na comanda
 export type BillItemProps = {
+    readonly user_id: string;
     readonly bill_item_id: string;
-    readonly bill_id: string;
     readonly product_id: string;
     readonly quantity: number;
     readonly price_at_addition: Decimal;
 }
 
 
-enum billStates{
+export enum billStates{
     ABERTA = "ABERTA",
     FECHADA = "FECHADA",
     CANCELADA = "CANCELADA"
@@ -23,6 +23,7 @@ export type BillProps = {
     readonly bill_code: string; //comanda "1025", por exemplo, que será utilizada por diversos clientes
     readonly status: billStates;
     readonly created_at: string;
+    readonly updated_at: string;
     readonly items: BillItemProps[]; //relacionamento com bill_items
 }
 
@@ -84,6 +85,7 @@ export class Bill {
             bill_code: bill_code,
             status: billStates.ABERTA,
             created_at: now,
+            updated_at: now,
             items: [] //inicia sem itens
         });
     }
@@ -107,29 +109,12 @@ export class Bill {
 
         return new Bill({
             ...this.props,
-            status: billStates.FECHADA
+            status: billStates.FECHADA,
+            updated_at: new Date().toISOString()
         })
     }
 
-    public withOpenedBill(): Bill{
-
-        if (this.props.status == billStates.ABERTA){
-            throw new Error("Essa comanda já está aberta")
-        }
-
-            
-        if(this.props.items.length != 0){
-            throw new Error("Essa comanda já está com itens pendentes")
-        }
-
-        return new Bill({
-                ...this.props,
-                status: billStates.ABERTA
-            }
-        )
-    }
-
-    public withNewProductAddedToBill(product: Product, quantity: number): Bill{
+    public withNewProductAddedToBill(product: Product, quantity: number, user_id: string): Bill{
 
         //readonly bill_item_id: string;
         //readonly bill_id: string;
@@ -152,13 +137,24 @@ export class Bill {
        :
         [...this.props.items, {
             bill_item_id: crypto.randomUUID(),
-            bill_id: this.bill_id,
             product_id: product.id,
             quantity: quantity,
-            price_at_addition: product.price
+            price_at_addition: product.price,
+            user_id: user_id
         }];
 
         return new Bill({...this.props, items: newItems});
+    }
+
+    public withCancelledBill(): Bill {
+        if (this.props.status !== billStates.ABERTA) {
+            throw new Error("Apenas comandas abertas podem ser canceladas.");
+        }
+        return new Bill({
+            ...this.props,
+            status: billStates.CANCELADA,
+            updated_at: new Date().toISOString()
+        });
     }
 
     public calculateTotalBillAmount(): Decimal {

@@ -103,6 +103,7 @@ export class Product {
     get price() { return this.props.unit_price_in_reais; }
     get gtin() { return this.props.gtin_code; }
     get isInternal() { return this.props.is_internal; }
+    get createdAt() {return this.props.created_at; }
     get updatedAt() { return this.props.updated_at; }
 
    
