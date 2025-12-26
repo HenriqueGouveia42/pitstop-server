@@ -1,24 +1,123 @@
-import type { User } from "../../../entities/user.js";
+import 'dotenv/config';
+import type { UserProps, UserRole } from "../../../entities/user.js";
+import { User } from "../../../entities/user.js";
 import type { IUserRepository } from "../../user.repository.interface.js";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL
+})
+
+const prisma = new PrismaClient({ adapter });
 
 export class PrismaUserRepository implements IUserRepository {
 
-    saveUser(user: User): Promise<void> {
-        throw new Error("Method not implemented.");
+    async saveUser(user: User): Promise<void> {
+        
+        const entityDataToRawPrismaData = {
+            user_id: user.id,
+            username: user.username,
+            password_hash: user.passwordHash,
+            role: user.role,
+            created_at: new Date(user.createdAt),
+            updated_at: new Date(user.updatedAt)
+        }
+
+        await prisma.user.create({
+            data: entityDataToRawPrismaData
+        })
     }
-    findSavedUserById(user_id: string): Promise<User> {
-        throw new Error("Method not implemented.");
+
+    async findSavedUserById(user_id: string): Promise<User> {
+
+        const prismaUser = await prisma.user.findUnique({
+            where:{
+                user_id: user_id
+            }
+        })
+
+        if(!prismaUser){
+            throw new Error("Usuário não encontrado");
+        }
+
+        const userProps: UserProps = {
+            user_id: prismaUser.user_id,
+            username: prismaUser.username,
+            password_hash: prismaUser.password_hash,
+            created_at: prismaUser.created_at.toISOString(),
+            updated_at: prismaUser.updated_at.toISOString(),
+            role: prismaUser.role as UserRole,
+            active: prismaUser.active
+        }
+
+        const user: User = User.restore(userProps);
+
+        return user;
     }
-    updateSavedUser(user: User): Promise<User> {
-        throw new Error("Method not implemented.");
+
+    async updateSavedUser(user: User): Promise<void> {
+
+        const rawPrismaData = {
+            username: user.username,
+            password_hash: user.passwordHash,
+            updated_at: new Date(user.updatedAt)
+        }
+
+        await prisma.user.update({
+            where:{
+                user_id: user.id
+            },
+            data: rawPrismaData
+        });
     }
-    listSavedUsers(): Promise<User[]> {
-        throw new Error("Method not implemented.");
+
+    async listAllSavedUsers(): Promise<User[]> {
+
+        const prismaUsers = await prisma.user.findMany();
+
+        let users: User[] = [];
+
+        for (const prismaUser of prismaUsers){
+
+            const user: User = User.restore({
+                user_id: prismaUser.user_id,
+                username: prismaUser.username,
+                password_hash: prismaUser.password_hash,
+                created_at: prismaUser.created_at.toISOString(),
+                updated_at: prismaUser.updated_at.toISOString(),
+                role: prismaUser.role as UserRole,
+                active: prismaUser.active
+            })
+
+            users.push(user)
+            
+        }
+
+        return users;
+
+
     }
-    deleteSavedUserById(user_id: string): Promise<void> {
-        throw new Error("Method not implemented.");
+
+    async deactivateSavedUserById(user_id: string): Promise<void> {
+        await prisma.user.update({
+            where:{
+                user_id: user_id
+            },
+            data:{
+                active: false
+            }
+        })
+    }
+
+    async activateSavedUserById(user_id: string): Promise<void> {
+        await prisma.user.update({
+            where:{
+                user_id: user_id
+            },
+            data:{
+                active: true
+            }
+        })
     }
 }

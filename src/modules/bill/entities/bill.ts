@@ -4,9 +4,9 @@ import { Product } from '../../product/entities/product.js';
 //tipo de um item na comanda
 export type BillItemProps = {
     readonly bill_item_id:  string; //representa uma adição específica em uma comanda específica
-    readonly user_id: string;
-    readonly product_id: string;
-    readonly quantity: number;
+    readonly user_id: string; //quem adicionou
+    readonly product_id: string; //qual produto
+    readonly quantity: number; //quantidade
     readonly price_at_addition: Decimal;
 }
 
@@ -31,21 +31,21 @@ export class Bill {
 
     private constructor(private readonly props: BillProps) {}
 
-    private static validateGtin13Code(gtin: string){
+    private static validateBillCode(gtin: string){
 
-        if(gtin.length != 13){
-            throw new Error("Codigo GTIN-13 precisa 13 digitos")
+        if(gtin.length != 4){
+            throw new Error("Codigo da comanda precisa ter 4 digitos")
         }
 
         //verificas se a string contém APENAS dígitos de 0 a 9
         if (!/^\d+$/.test(gtin)) {
-            throw new Error("O código GTIN deve conter apenas números");
+            throw new Error("O código de 4 digitos deve conter apenas números");
         }
 
-        const startsWith202 = gtin.startsWith('202');
+        const startsWith0 = gtin.startsWith('0');
 
-        if(!startsWith202){
-            throw new Error("O código GTIN deve comecar com o prefixo de comanda: '202' ");
+        if(startsWith0){
+            throw new Error("O código da comanda nao pode comecar com '0'");
         }
 
         const lastNumber = Number(gtin.slice(-1));
@@ -53,7 +53,7 @@ export class Bill {
         let sum: number = 0;
         let impar: boolean = true;
 
-        for(let i = 0; i < 12; i++){
+        for(let i = 0; i < gtin.length-1; i++){
 
             let currentNumber = Number(gtin[i]);
 
@@ -70,13 +70,13 @@ export class Bill {
         const expectedCheckNumber = (10 - sum) % 10;
 
         if(lastNumber != expectedCheckNumber){
-            throw new Error("GTIN-13 invalido. Digito Verificador incorreto")
+            throw new Error("Codigo da comanda inválido. Digito Verificador incorreto. O codigo de 4 digitos segue a mesma regra do GTIN-13 para o Digito Verificador.")
         }
     }
 
     public static buildBill(bill_code_gtin: string): Bill {
 
-        Bill.validateGtin13Code(bill_code_gtin);
+        Bill.validateBillCode(bill_code_gtin);
 
         const now = new Date().toISOString();
 
@@ -89,8 +89,8 @@ export class Bill {
             items: [] //inicia sem itens
         });
     }
-    //getters para acesso seguro aos dados -- readonly permite apenas ler
 
+    //getters para acesso seguro aos dados -- readonly permite apenas ler
     get bill_id() {return this.props.bill_id}
     get bill_code() {return this.props.bill_code_gtin}
     get status() {return this.props.status}

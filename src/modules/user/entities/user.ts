@@ -11,6 +11,7 @@ export type UserProps = {
     readonly created_at: string;
     readonly updated_at: string;
     readonly role: UserRole;
+    readonly active: boolean;
 }
 
 export class User {
@@ -35,8 +36,13 @@ export class User {
             password_hash,
             created_at: now,
             updated_at: now,
-            role
+            role,
+            active: true
         });
+    }
+
+    public static restore(props: UserProps): User{
+        return new User(props);
     }
 
     //getters
@@ -46,6 +52,7 @@ export class User {
     get role() { return this.props.role; }
     get createdAt() { return this.props.created_at; }
     get updatedAt() { return this.props.updated_at; }
+    get active() { return this.props.active; }
 
     //setters que retornam novos objetos, mantendo a imutabilidade de um objeto criado
     public withUsername(newName: string): User {
