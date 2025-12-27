@@ -2,14 +2,8 @@ import 'dotenv/config';
 import type { UserProps, UserRole } from "../../../entities/user.js";
 import { User } from "../../../entities/user.js";
 import type { IUserRepository } from "../../user.repository.interface.js";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from '@prisma/adapter-pg';
 
-const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL
-})
-
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "../../../../../shared/infra/prisma.js"
 
 export class PrismaUserRepository implements IUserRepository {
 

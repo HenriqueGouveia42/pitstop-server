@@ -1,13 +1,8 @@
 import type { Product } from '../../../entities/product.js';
 import type { ProductRepository } from '../../product.repository.interface.js';
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from '@prisma/adapter-pg';
 
-const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL
-})
 
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "../../../../../shared/infra/prisma.js"
 
 export class PrismaProductRepository implements ProductRepository {
 
