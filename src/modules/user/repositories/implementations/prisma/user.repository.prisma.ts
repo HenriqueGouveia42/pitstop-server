@@ -66,14 +66,15 @@ export class PrismaUserRepository implements IUserRepository {
         });
     }
 
-    async listAllSavedUsers(): Promise<User[]> {
-
-        const prismaUsers = await prisma.user.findMany();
-
+    async listAllSavedUsers(active: boolean): Promise<User[]> {
+        const prismaUsers = await prisma.user.findMany({
+            where:{
+                active: active
+            }
+        });
         let users: User[] = [];
 
         for (const prismaUser of prismaUsers){
-
             const user: User = User.restore({
                 user_id: prismaUser.user_id,
                 username: prismaUser.username,
@@ -83,14 +84,9 @@ export class PrismaUserRepository implements IUserRepository {
                 role: prismaUser.role as UserRole,
                 active: prismaUser.active
             })
-
             users.push(user)
-            
         }
-
         return users;
-
-
     }
 
     async deactivateSavedUserById(user_id: string): Promise<void> {
@@ -114,4 +110,6 @@ export class PrismaUserRepository implements IUserRepository {
             }
         })
     }
+
+    
 }
