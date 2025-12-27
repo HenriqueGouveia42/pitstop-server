@@ -8,8 +8,6 @@ export class PrismaProductRepository implements ProductRepository {
 
     async saveProduct(product: Product): Promise<void> {
 
-        console.log("Salvando produto no banco de dados via Prisma...")
-
         const entityDataToRawPrismaData = {
             product_id: product.id,
             name: product.name,
