@@ -76,7 +76,7 @@ export class Product {
         name: string, 
         unit_price_in_reais: Decimal, 
         gtin_code: string, 
-        is_internal: boolean
+        is_internal: boolean = true
     ): Product {
 
        
