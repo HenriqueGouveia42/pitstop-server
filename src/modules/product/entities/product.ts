@@ -97,6 +97,14 @@ export class Product {
         });
     }
 
+    public static restoreProduct(props: ProductProps): Product {
+
+        Product.validateGtin13Code(props.gtin_code, props.is_internal);
+        Product.validateName(props.name);
+        Product.validatePrice(props.unit_price_in_reais);
+        return new Product(props);
+    }
+
     //getters para acesso seguro aos dados -- readonly permite apenas ler
     get id() { return this.props.product_id; }
     get name() { return this.props.name; }
