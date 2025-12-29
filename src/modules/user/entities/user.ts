@@ -42,6 +42,7 @@ export class User {
     }
 
     public static restore(props: UserProps): User{
+        User.validateUsername(props.username);
         return new User(props);
     }
 
