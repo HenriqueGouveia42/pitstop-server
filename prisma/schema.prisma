@@ -84,7 +84,6 @@ model Bill {
 
   //relacionamentos
   items          BillProduct[]
-  sale_products SaleProduct[]
 
   
   //uma comanda pode gerar no máximo UMA venda final.
@@ -142,7 +141,6 @@ model SaleProduct {
   //relacionamentos
   sale    Sale    @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
   product Product @relation(fields: [product_id], references: [product_id])
-  origin_bill Bill? @relation(fields: [origin_bill_id], references: [bill_id])
 
   @@map("sale_products")
 }

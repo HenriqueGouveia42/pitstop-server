@@ -3,7 +3,7 @@ import type { ISaleRepository } from '../../sale.repository.interface.js';
 
 export class PrismaSaleRepository implements ISaleRepository {
 
-    saveSale(sale: Sale): Promise<void> {
+    saveSale(sale: Sale): Promise<void> { //FECHAR UMA VENDA
         throw new Error("Method not implemented.");
     }
     findSavedSaleById(sale_id: string): Promise<Sale> {

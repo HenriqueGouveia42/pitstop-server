@@ -93,6 +93,10 @@ export class Bill {
         });
     }
 
+    public static restoreBill(props: BillProps): Bill{
+        return new Bill(props)
+    }
+
     //getters para acesso seguro aos dados -- readonly permite apenas ler
     get bill_id() {return this.props.bill_id}
     get bill_code() {return this.props.bill_code_gtin}
@@ -143,7 +147,9 @@ export class Bill {
         const existingItemIndex = this.props.items.findIndex(item => 
             (item.product_id === product.id)
             &&
-            (item.price_at_addition.equals(product.price)) 
+            (item.price_at_addition.equals(product.price))
+            &&
+            (item.user_id === user_id) //so agrupa se id, preco e usuario que lancou forem iguais
         );
         
         const itemsToAdd = [...this.props.items];
@@ -175,6 +181,86 @@ export class Bill {
         }
 
        return new Bill({...this.props, items: itemsToAdd, updated_at: new Date().toISOString()});
+    }
+
+    public withProductRemovedFromBill(product_id: string, quantityToRemove: number): Bill {
+        
+        //validacoes basicas
+        if (this.props.status !== billStates.ABERTA) {
+            throw new Error("Não é possível remover itens de uma comanda fechada ou cancelada.");
+        }
+        if (quantityToRemove <= 0) {
+            throw new Error("A quantidade a remover deve ser maior que zero.");
+        }
+
+        // 2. Encontrar o item (Aqui simplifiquei para achar pelo produto, 
+        // mas idealmente num PDV você remove pelo ID da linha 'bill_item_id' para ser exato)
+        // Como sua lógica agrupa por Preço+User+Produto, vamos buscar itens compatíveis.
+        
+        // Cópia da lista para imutabilidade
+        let itemsCurrent = [...this.props.items];
+        let quantityRemainingToRemove = quantityToRemove;
+
+        // Estratégia: Remover dos itens mais recentes ou varrer a lista.
+        // Vamos varrer procurando o produto.
+        const indexesToUpdate: number[] = [];
+
+        // Filtra itens que são desse produto
+        const targetItems = itemsCurrent.filter(i => i.product_id === product_id);
+
+        if (targetItems.length === 0) {
+            throw new Error("Este produto não existe nesta comanda.");
+        }
+
+        // Soma total disponível desse produto na comanda
+        const totalQuantityAvailable = targetItems.reduce((acc, item) => acc + item.quantity, 0);
+
+        if (totalQuantityAvailable < quantityToRemove) {
+            throw new Error(`Tentativa de remover ${quantityToRemove} itens, mas só existem ${totalQuantityAvailable} na comanda.`);
+        }
+
+        // 3. Lógica de Remoção (FIFO ou LIFO - aqui removendo qualquer um que achar)
+        // Isso é complexo porque temos múltiplos 'users' adicionando. 
+        // REGRA DE NEGÓCIO: Geralmente removemos do último que adicionou ou exigimos o ID da linha.
+        // VOU SIMPLIFICAR: Vamos remover pelo bill_item_id se o front mandar, ou remover do primeiro que achar.
+        
+        // *Sugestão*: Mude a assinatura para receber o bill_item_id. É mais seguro.
+        // Mas para manter seu padrão atual de agrupar, vamos iterar e subtrair.
+
+        const newItems: BillItemProps[] = [];
+
+        for (const item of itemsCurrent) {
+            // Se não é o produto, mantém
+            if (item.product_id !== product_id) {
+                newItems.push(item);
+                continue;
+            }
+
+            // Se já removemos tudo que precisava, mantém o resto
+            if (quantityRemainingToRemove <= 0) {
+                newItems.push(item);
+                continue;
+            }
+
+            if (item.quantity > quantityRemainingToRemove) {
+                // O item tem mais do que precisamos remover. Apenas diminui.
+                newItems.push({
+                    ...item,
+                    quantity: item.quantity - quantityRemainingToRemove
+                });
+                quantityRemainingToRemove = 0;
+            } else {
+                // O item tem igual ou menos. Removemos o item inteiro (não damos push no newItems)
+                // e abatemos do que falta remover.
+                quantityRemainingToRemove -= item.quantity;
+            }
+        }
+
+        return new Bill({
+            ...this.props,
+            items: newItems,
+            updated_at: new Date().toISOString()
+        });
     }
 
     public withCancelledBill(): Bill {
