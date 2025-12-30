@@ -56,22 +56,15 @@ export class User {
     get active() { return this.props.active; }
 
     //setters que retornam novos objetos, mantendo a imutabilidade de um objeto criado
-    public withUsername(newName: string): User {
-        User.validateUsername(newName);
+    public withUpdatedData(newUsername:string, newHashedPassword: string): User {
+
+        User.validateUsername(newUsername);
 
         return new User({
             ...this.props,
-            username: newName,
-            updated_at: new Date().toISOString()
-        });
-    }
-
-    public withPassword(newHashedPassord: string): User{
-        return new User({
-            ...this.props,
-            password_hash: newHashedPassord,
+            username: newUsername,
+            password_hash: newHashedPassword,
             updated_at: new Date().toISOString()
         })
     }
-
 }

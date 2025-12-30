@@ -1,5 +1,5 @@
 node_modules/
-testing_scripts/
+test.test
 .env
 /src/generated/prisma
 

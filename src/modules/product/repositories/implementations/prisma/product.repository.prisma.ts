@@ -15,7 +15,8 @@ export class PrismaProductRepository implements ProductRepository {
             updated_at: prismaProduct.updated_at.toISOString(),
             unit_price_in_reais: prismaProduct.unit_price_in_reais,
             gtin_code: prismaProduct.gtin_code,
-            is_internal: prismaProduct.is_internal
+            is_internal: prismaProduct.is_internal,
+            active: prismaProduct.active
         }
 
         return Product.restoreProduct(productProps);
@@ -29,7 +30,8 @@ export class PrismaProductRepository implements ProductRepository {
             gtin_code: product.gtin,
             is_internal: product.isInternal,
             created_at: new Date(product.createdAt),
-            updated_at: new Date(product.updatedAt)
+            updated_at: new Date(product.updatedAt),
+            active: product.active
         }
     }
 
@@ -57,6 +59,23 @@ export class PrismaProductRepository implements ProductRepository {
         return productMapped;
     }
 
+    async findSavedProductByGtinCode(gtin_code: string): Promise<Product>{
+
+        const prismaProduct = await prisma.product.findUnique({
+            where:{
+                gtin_code: gtin_code
+            }
+        })
+
+        if (!prismaProduct){
+            throw new Error("Produto não encontrado pelo GTIN code");
+        }
+
+        const product: Product = PrismaProductRepository.prismaToEntityDataMapper(prismaProduct);
+
+        return product;
+    }
+
     async updateSavedProduct(product: Product): Promise<Product> {
 
         const mappedToPrisma = PrismaProductRepository.entityToPrismaDataMapper(product);
@@ -78,9 +97,13 @@ export class PrismaProductRepository implements ProductRepository {
         return mappedToEntity;
     }
 
-    async listSavedProducts(): Promise<Product[]> {
+    async listSavedProducts(active: boolean): Promise<Product[]> {
 
-        const prismaSavedProducts = await prisma.product.findMany();
+        const prismaSavedProducts = await prisma.product.findMany({
+            where:{
+                active: active
+            }
+        });
 
         if (prismaSavedProducts.length === 0){
             return [];
@@ -91,7 +114,26 @@ export class PrismaProductRepository implements ProductRepository {
         );
     }
 
-    deleteSavedProductById(product_id: string): Promise<void> {
-        throw new Error("Method not implemented.");
+    async deactivateSavedProductById(product_id: string): Promise<void> {
+
+        await prisma.product.update({
+            where:{
+                product_id: product_id
+            },
+            data:{
+                active: false
+            }
+        })
+    }
+     async activateSavedProductById(product_id: string): Promise<void> {
+
+        await prisma.product.update({
+            where:{
+                product_id: product_id
+            },
+            data:{
+                active: true
+            }
+        })
     }
 }

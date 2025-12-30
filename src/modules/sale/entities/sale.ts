@@ -1,97 +1,77 @@
 import { Decimal } from "decimal.js";
 
-//enums e types
-export enum PaymentMethod {
-    PIX = "PIX",
-    ESPECIE = "ESPECIE",
-    CARTAO_DEBITO = "CARTAO_DEBITO",
-    CARTAO_CREDITO = "CARTAO_CREDITO"
-}
-
 export enum SaleStatus {
     CONCLUIDA = "CONCLUIDA",
     CANCELADA = "CANCELADA",
     ESTORNADA = "ESTORNADA"
 }
-//
-//
-//
-//
-//
-// output DTO's
-export type SaleItemOutputDTO = {
-    readonly sale_product_id: string;
-    readonly product_id: string;
-    readonly quantity: number;
-    readonly unit_price_sold: Decimal;
-    readonly cameFromBill: boolean;
+
+export enum PaymentMethod {
+  PIX = "PIX",
+  ESPECIE = "ESPECIE",
+  CARTAO_DEBITO = "CARTAO_DEBITO",
+  CARTAO_CREDITO = "CARTAO_CREDITO"
 }
-export type SalePaymentOutputDTO = {
-    readonly sale_payment_id: string;
-    readonly method: PaymentMethod;
-    readonly amount: Decimal;
+
+export type SalePaymentProp = { //representa um pagamento de uma determinada venda  fechada
+    readonly sale_payment_id: string,
+    readonly amount: Decimal,
+    readonly method: PaymentMethod,
+    readonly sale_id: string,
 }
-//
-//
-//
-//
-//
-// input DTO's
-export type SaleItemInputDTO = {
-    readonly product_id: string;
-    readonly quantity: number;
-    readonly unit_price_sold: Decimal;
-    readonly cameFromBill: boolean;
+
+export type SaleProductProp = { //representa um produto numa venda fechada
+    readonly sale_product_id: string,
+    readonly quantity: number,
+    readonly unit_price_sold: Decimal,
+
+    readonly sale_id: string,
+    readonly product_id: string,
+    readonly origin_bill_id?: string //opcional pois o item da venda pode ter sido feito direto no balcao, ou seja, sem comanda
 }
-export type SalePaymentInputDTO = {
-    readonly method: PaymentMethod;
-    readonly amount: Decimal;
-}
-export type SaleProp = {
+
+export type SaleProp = { //representa uma venda fechada
     readonly sale_id: string;
+    readonly total_price: Decimal;
+    readonly status: SaleStatus;
     readonly user_id: string;
-    readonly origin_bill_id: string | null;
     readonly created_at: string,
     readonly updated_at: string;
-    readonly status: SaleStatus;
-    readonly total_price: Decimal;
-    readonly items: SaleItemOutputDTO[];
-    readonly payments: SalePaymentOutputDTO[];
+
+    readonly items: SaleProductProp[];
+    readonly payments: SalePaymentProp[];
 }
-//
-//
-//
-//
-//
+
+
 export class Sale {
 
     private constructor(private readonly props: SaleProp) {}
 
-    private static validateTotals(totalItems: Decimal, totalPaid: Decimal) {
+    private static validateTotals(totalAmountFromItems: Decimal, totalPaid: Decimal) {
         
-        if (totalPaid.lessThan(totalItems)) {
-             throw new Error(`Pagamento menor do que o valor da conta. Total Venda: ${totalItems}, Total Pago: ${totalPaid}`);
+        if (totalPaid.lessThan(totalAmountFromItems)) {
+             throw new Error(`Pagamento menor do que o valor da conta. Total Venda: ${totalAmountFromItems}, Total Pago: ${totalPaid}`);
         }
     }
 
-    public static buildSale(
+    public static buildSale( //venda fechada
         user_id: string,
-        itemsInput: SaleItemInputDTO[],       // Recebe Input (sem ID)
-        paymentsInput: SalePaymentInputDTO[], // Recebe Input (sem ID)
-        origin_bill_id?: string
+        items: SaleProductProp[],      
+        payments: SalePaymentProp[], // Recebe Input (sem ID)
+
     ): Sale {
         
-        if (itemsInput.length === 0) {
+        if (items.length === 0) {
             throw new Error("Não é possível criar uma venda sem itens.");
         }
 
         //o preco da venda é a soma dos itens
-        const calculatedTotalPrice = itemsInput.reduce((acc, item) => {
+        const calculatedTotalPrice = items.reduce((acc, item) => {
             return acc.plus(item.unit_price_sold.times(item.quantity));
         }, new Decimal(0));
 
         //quanto foi pago
-        const calculatedTotalPaid = paymentsInput.reduce((acc, pay) => {
+        const calculatedTotalPaid = payments.reduce((acc, pay) => {
             return acc.plus(pay.amount);
         }, new Decimal(0));
 
@@ -99,33 +79,17 @@ export class Sale {
         Sale.validateTotals(calculatedTotalPrice, calculatedTotalPaid);
 
         const now = new Date().toISOString();
-
         const newSaleId = crypto.randomUUID();
-
-        const itemsProps: SaleItemOutputDTO[] = itemsInput.map(item => ({
-            sale_product_id: crypto.randomUUID(),
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price_sold: item.unit_price_sold,
-            cameFromBill: item.cameFromBill
-        }));
-
-        const paymentsProps: SalePaymentOutputDTO[] = paymentsInput.map(pay => ({
-            sale_payment_id: crypto.randomUUID(),
-            method: pay.method,
-            amount: pay.amount
-        }));
 
         return new Sale({
             sale_id: newSaleId,
+            total_price: calculatedTotalPrice,
+            status: SaleStatus.CONCLUIDA, //VENDA FECHADA!!
             user_id,
-            origin_bill_id: origin_bill_id || null,
             created_at: now,
             updated_at: now,
-            status: SaleStatus.CONCLUIDA,
-            total_price: calculatedTotalPrice,
-            items: itemsProps,
-            payments: paymentsProps
+            items,
+            payments
         });
     }
 
@@ -136,7 +100,6 @@ export class Sale {
     get status() { return this.props.status; }
     get items() { return this.props.items; }
     get payments() { return this.props.payments; }
-    get originBillId() { return this.props.origin_bill_id; }
 
     public withCancelledStatus(): Sale {
         if (this.props.status !== SaleStatus.CONCLUIDA) {

@@ -8,6 +8,7 @@ export type ProductProps = {
     readonly unit_price_in_reais: Decimal;
     readonly gtin_code: string;
     readonly is_internal: boolean;
+    readonly active: boolean;
 }
 
 export class Product {
@@ -50,17 +51,16 @@ export class Product {
             throw new Error("GTIN-13 invalido. Digito Verificador incorreto")
         }
 
-        const startsWith200 = gtin.startsWith('200');
+        const startsWith22 = gtin.startsWith('22');
 
-        if( startsWith200 !== is_internal){
-            throw new Error("GTIN-13 code não corresponde ao status 'is_internal'. Produtos internos começam com '200'")
+        if( startsWith22 && !is_internal){
+            throw new Error("Erro! Produto comeca com '22', prefixo reservado apenas a produtos internos")
         }
 
-        const startsWith202 = gtin.startsWith('202');
-
-        if (startsWith202){
-            throw new Error("Um produto nao pode comecar com '202', pois esse prefixo é reservado para comandas")
+        if(!startsWith22 && is_internal){
+            throw new Error("Erro! Produto é interno e nao comeca com o prefixo '22', reservado apenas a produtos internos")
         }
+
 
     }
 
@@ -72,15 +72,69 @@ export class Product {
         if (price.isNegative() || price.gt(1000000)) throw new Error("Preço fora da faixa permitida");
     }
 
+    private static generateExpectedVerifierDigitGtin13(current12DigitsString: string): string{
+
+        if(current12DigitsString.length != 12){
+            throw new Error("O valor experado do Digito verificador so pode ser calculado com os primeiros 12 digitos")
+        }
+
+        let sum: number = 0;
+        let impar: boolean = true;
+
+        for (let i = 0; i < current12DigitsString.length; i++){
+            impar ?
+                sum += Number(current12DigitsString[i])
+            :
+                sum += Number(current12DigitsString[i]) * 3;
+            
+            impar = !impar
+        }
+
+        return ((10 - (sum % 10)) % 10).toString();
+    }
+
+    private static generateGtin13CodeForInternalProduct(): string 
+    {
+        let result: string = '22';
+
+        for (let i = 0; i < 10; i++){
+            result += Math.floor(Math.random() * 10).toString()
+        }
+
+        const verifierDigit: string = Product.generateExpectedVerifierDigitGtin13(result)
+
+        return result + verifierDigit
+    }
+
+    //produtos internos vao ter gtin13 code sempre comecando com 202
     public static buildProduct(
         name: string, 
         unit_price_in_reais: Decimal, 
-        gtin_code: string, 
-        is_internal: boolean = true
+        gtin_code?: string | null | undefined, 
+        is_internal: boolean = true,
+        active: boolean = true
     ): Product {
 
+        let finalGtin: string;
+
+        //REGRA 1: Produto externo OBRIGATORIAMENTE precisa de GTIN
+        if (!is_internal && !gtin_code) {
+            throw new Error("Um produto externo deve possuir um GTIN-13 informado.");
+        }
+
+        //REGRA 2: Se for interno e NÃO tiver GTIN, gera um.
+        if (is_internal && !gtin_code) {
+            finalGtin = Product.generateGtin13CodeForInternalProduct();
+        } 
+
+        //REGRA 3: Se o GTIN foi passado (seja interno manual ou externo), usa ele.
+        else {
+            //o compilador TS sabe que gtin_code existe aqui por causa da Regra 1
+            finalGtin = gtin_code!; 
+        }
        
-        Product.validateGtin13Code(gtin_code, is_internal);
+       
+        Product.validateGtin13Code(finalGtin, is_internal);
         Product.validateName(name);
         Product.validatePrice(unit_price_in_reais);
 
@@ -92,8 +146,9 @@ export class Product {
             created_at: now,
             updated_at: now,
             unit_price_in_reais,
-            gtin_code,
-            is_internal
+            gtin_code: finalGtin,
+            is_internal,
+            active
         });
     }
 
@@ -113,31 +168,19 @@ export class Product {
     get isInternal() { return this.props.is_internal; }
     get createdAt() {return this.props.created_at; }
     get updatedAt() { return this.props.updated_at; }
+    get active() { return this.props.active; }
 
-   
-    //esses metodos substituem os setters. cada um deles retorna um novo objeto, com aquela propriedade alterada
-
-    //retorna nova instancia de Product apenas com o nome alterado
-    public withName(newName: string): Product {
+    //setter que retorna novo objeto, mantendo a imutabilidade de um objeto criado
+    public withUpdatedData(newName:string, newPrice: Decimal): Product{
 
         Product.validateName(newName);
-
-        return new Product({
-            ...this.props, //copia os dados atuais
-            name: newName,  //sbrescreve apenas o nome
-            updated_at: new Date().toISOString() // Atualiza o timestamp
-        });
-    }
-
-    //retorna uma nova instancia de Product apenas com o preco alterado
-    public withUnitPrice(newPrice: Decimal): Product {
-
         Product.validatePrice(newPrice);
 
         return new Product({
             ...this.props,
+            name: newName,
             unit_price_in_reais: newPrice,
             updated_at: new Date().toISOString()
-        });
+        })
     }
 }

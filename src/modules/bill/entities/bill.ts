@@ -1,5 +1,6 @@
 import { Decimal } from 'decimal.js';
 import { Product } from '../../product/entities/product.js';
+import { User } from '../../user/entities/user.js';
 
 //tipo de um item na comanda
 export type BillItemProps = {
@@ -10,9 +11,10 @@ export type BillItemProps = {
     readonly price_at_addition: Decimal;
 }
 
+
 //estados possiveis de uma comanda
 export enum billStates{
-    ABERTA = "ABERTA",
+    ABERTA = "ABERTA", //apta a receber novos itens - estado inicial da criacao de uma comanda
     FECHADA = "FECHADA",
     CANCELADA = "CANCELADA"
 }
@@ -63,6 +65,7 @@ export class Bill {
             sum += (3 * currentNumber);
 
             impar = !impar
+            
         }
 
         sum = sum % 10;
@@ -95,6 +98,7 @@ export class Bill {
     get bill_code() {return this.props.bill_code_gtin}
     get status() {return this.props.status}
     get createdAt() {return this.props.created_at}
+    get updatedAt() {return this.props.updated_at}
     get items() {return this.props.items}
 
     public withClosedBill(): Bill{ //fechar comanda - realizar venda
@@ -128,34 +132,47 @@ export class Bill {
 
     public withNewProductAddedToBill(product: Product, quantity: number, user_id: string): Bill {
 
+        //validacoes de quantidade e estatus da comanda
         if (quantity <= 0) throw new Error("A quantidade deve ser maior que zero.");
-    
         if (this.props.status !== billStates.ABERTA) throw new Error("Não é possível adicionar itens a uma comanda que não está ABERTA.");
-        
-        const itemExists: boolean = this.props.items.some(item => item.product_id === product.id) //se o item ja existe na comanda
-        
-        let itemsToAdd: BillItemProps[];
-       
-        if (itemExists){ //item ja existe na comanda
-    
-            itemsToAdd = this.props.items.map(item =>
-                item.product_id === product.id
-                ? {...item, quantity: item.quantity + quantity}
-                : item
-            )
-
-        } else { //item ainda nao existe na comanda
-
-        const newItem: BillItemProps = {
-            bill_item_id: crypto.randomUUID(),
-            user_id: user_id,
-            product_id: product.id,
-            quantity: quantity,
-            price_at_addition:product.price
+        if (!product.active) {
+            throw new Error("Este produto está arquivado/inativo e não pode ser vendido.");
         }
+        
+        //verifica se o item com mesmo preco ja existe na comanda
+        const existingItemIndex = this.props.items.findIndex(item => 
+            (item.product_id === product.id)
+            &&
+            (item.price_at_addition.equals(product.price)) 
+        );
+        
+        const itemsToAdd = [...this.props.items];
 
-        itemsToAdd = [...this.props.items, newItem]
-       }
+        if (existingItemIndex !== -1){ //item ja existe na comanda e preco nao mudou
+    
+           const currentItem = itemsToAdd[existingItemIndex];
+
+            if (!currentItem) {
+                throw new Error("Erro interno... na entidade bills - adicionando item à comanda.");
+            }
+            
+            itemsToAdd[existingItemIndex] = {
+                ...currentItem,
+                quantity: currentItem.quantity + quantity
+            };
+
+        } else { //item ainda nao existe na comanda ou ja existe mas com preco diferente
+
+            const newItem: BillItemProps = {
+                bill_item_id: crypto.randomUUID().toString(),
+                user_id: user_id,
+                product_id: product.id,
+                quantity: quantity,
+                price_at_addition: product.price
+            }
+
+            itemsToAdd.push(newItem);
+        }
 
        return new Bill({...this.props, items: itemsToAdd, updated_at: new Date().toISOString()});
     }
